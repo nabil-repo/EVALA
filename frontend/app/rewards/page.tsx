@@ -38,7 +38,7 @@ export default function RewardsPage() {
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
   const isZk = useIsZkLogin();
   const { isSignedIn: hasZkSession } = useZkSession();
-  
+
   const [myContent, setMyContent] = useState<ContentItem[]>([]);
   const [poolStatus, setPoolStatus] = useState<Record<string, PoolStatus>>({});
   const [closedStatus, setClosedStatus] = useState<Record<string, boolean>>({});
@@ -67,8 +67,8 @@ export default function RewardsPage() {
       try {
         // Fetch content created by this user
         const events = await client.queryEvents({
-          query: { 
-            MoveEventType: `${PACKAGE_ID}::${MODULES.content}::ContentRegisteredV2` 
+          query: {
+            MoveEventType: `${PACKAGE_ID}::${MODULES.content}::ContentRegisteredV2`
           },
           limit: 100,
           order: 'descending',
@@ -80,7 +80,7 @@ export default function RewardsPage() {
         }).map((ev: any) => {
           const titleData = ev.parsedJson?.title;
           let title = "Untitled";
-          
+
           // Decode title if it's a byte array
           if (Array.isArray(titleData)) {
             try {
@@ -91,7 +91,7 @@ export default function RewardsPage() {
           } else if (typeof titleData === 'string') {
             title = titleData;
           }
-          
+
           return {
             id: ev.parsedJson?.content_id,
             title,
@@ -106,14 +106,14 @@ export default function RewardsPage() {
         for (const item of myContentItems) {
           try {
             const voteEvents = await client.queryEvents({
-              query: { 
-                MoveEventType: `${PACKAGE_ID}::${MODULES.vote}::VoteSubmitted` 
+              query: {
+                MoveEventType: `${PACKAGE_ID}::${MODULES.vote}::VoteSubmitted`
               },
               limit: 100,
               order: 'descending',
             });
 
-            const votesForContent = voteEvents.data.filter((ev: any) => 
+            const votesForContent = voteEvents.data.filter((ev: any) =>
               ev.parsedJson?.content_id === item.id
             );
 
@@ -126,7 +126,7 @@ export default function RewardsPage() {
                 const variant = ev.parsedJson?.variant_index;
                 variantCounts[variant] = (variantCounts[variant] || 0) + 1;
               });
-              
+
               let maxVotes = 0;
               let winner: number | null = null;
               for (const [variant, count] of Object.entries(variantCounts)) {
@@ -156,7 +156,7 @@ export default function RewardsPage() {
         });
 
         const statusMap: Record<string, { funded: boolean; distributed: boolean; amount: string; potBalance: string }> = {};
-        
+
         pools.data.forEach((pool: any) => {
           const fields = pool.data?.content?.fields;
           if (fields) {
@@ -165,7 +165,7 @@ export default function RewardsPage() {
             const potBalance = fields.pot || "0";
             const potBalanceFormatted = (parseInt(potBalance) / 1_000_000_000).toFixed(2);
             const amount = potBalanceFormatted;
-            
+
             statusMap[contentId] = {
               funded: true,
               distributed,
@@ -178,8 +178,8 @@ export default function RewardsPage() {
         // Get distributed amounts from RewardDistributed events
         try {
           const rewardEvents = await client.queryEvents({
-            query: { 
-              MoveEventType: `${PACKAGE_ID}::${MODULES.reward}::RewardDistributed` 
+            query: {
+              MoveEventType: `${PACKAGE_ID}::${MODULES.reward}::RewardDistributed`
             },
             limit: 100,
             order: 'descending',
@@ -188,7 +188,7 @@ export default function RewardsPage() {
           rewardEvents.data.forEach((ev: any) => {
             const contentId = ev.parsedJson?.content_id;
             const total = ev.parsedJson?.total;
-            
+
             if (contentId && total && statusMap[contentId]) {
               // If already distributed, show the total that was distributed
               if (statusMap[contentId].distributed) {
@@ -205,7 +205,7 @@ export default function RewardsPage() {
         // Check closed status from VoteBook for each content
         if (VOTEBOOK_ID) {
           const closedMap: Record<string, boolean> = {};
-          
+
           for (const item of myContentItems) {
             try {
               const tx = new Transaction();
@@ -230,7 +230,7 @@ export default function RewardsPage() {
               console.error(`Error checking closed status for ${item.id}:`, e);
             }
           }
-          
+
           setClosedStatus(closedMap);
         }
 
@@ -257,8 +257,8 @@ export default function RewardsPage() {
         // Get all validators who voted
         try {
           const allVoteEvents = await client.queryEvents({
-            query: { 
-              MoveEventType: `${PACKAGE_ID}::${MODULES.vote}::VoteSubmitted` 
+            query: {
+              MoveEventType: `${PACKAGE_ID}::${MODULES.vote}::VoteSubmitted`
             },
             limit: 500,
             order: 'descending',
@@ -292,10 +292,10 @@ export default function RewardsPage() {
   }, [account?.address, client]);
 
   const fundRewardPool = async (contentId: string) => {
-    if (!isZk && !hasZkSession) {
-      setMessage(zkLoginGuardMessage());
-      return;
-    }
+    // if (!isZk && !hasZkSession) {
+    //   setMessage(zkLoginGuardMessage());
+    //   return;
+    // }
     const amount = fundingAmount[contentId];
     if (!amount || parseFloat(amount) <= 0) {
       setMessage("Error: Please enter a valid amount");
@@ -304,12 +304,12 @@ export default function RewardsPage() {
 
     try {
       if (!PACKAGE_ID) throw new Error('NEXT_PUBLIC_PACKAGE_ID not set');
-      
+
       const amountInMist = Math.floor(parseFloat(amount) * 1_000_000_000);
-      
+
       const tx = new Transaction();
       const [coin] = tx.splitCoins(tx.gas, [amountInMist]);
-      
+
       tx.moveCall({
         target: `${PACKAGE_ID}::${MODULES.reward}::fund`,
         arguments: [
@@ -320,7 +320,7 @@ export default function RewardsPage() {
 
       const res = await signAndExecute({ transaction: tx, chain: 'sui:devnet' });
       setMessage(`Success: Reward pool funded with ${amount} SUI! Digest: ${(res as any)?.digest?.slice(0, 12)}...`);
-      
+
       setTimeout(() => {
         setMessage("");
         window.location.reload();
@@ -332,16 +332,13 @@ export default function RewardsPage() {
   };
 
   const distributeRewards = async (contentId: string) => {
-    if (!isZk && !hasZkSession) {
-      setMessage(zkLoginGuardMessage());
-      return;
-    }
+
     setDistributingContent(contentId);
     setMessage("");
 
     try {
       if (!PACKAGE_ID) throw new Error('NEXT_PUBLIC_PACKAGE_ID not set');
-      
+
       // Check if already distributed
       const status = poolStatus[contentId];
       if (!status?.funded) {
@@ -349,13 +346,13 @@ export default function RewardsPage() {
         setDistributingContent(null);
         return;
       }
-      
+
       if (status.distributed) {
         setMessage("Error: Rewards already distributed for this content!");
         setDistributingContent(null);
         return;
       }
-      
+
       // First, find the RewardPool object for this content
       const objects = await client.getOwnedObjects({
         owner: account!.address,
@@ -379,9 +376,9 @@ export default function RewardsPage() {
       }
 
       const poolId = rewardPool.data?.objectId;
-      
+
       if (!VOTEBOOK_ID) throw new Error('VOTEBOOK_ID not configured');
-      
+
       const tx = new Transaction();
       tx.moveCall({
         target: `${PACKAGE_ID}::${MODULES.reward}::distribute_rewards`,
@@ -393,7 +390,7 @@ export default function RewardsPage() {
 
       const res = await signAndExecute({ transaction: tx, chain: 'sui:devnet' });
       setMessage(`Success: Rewards distributed! Digest: ${(res as any)?.digest?.slice(0, 12)}...`);
-      
+
       setTimeout(() => {
         window.location.reload();
       }, 2000);
@@ -406,16 +403,13 @@ export default function RewardsPage() {
   };
 
   const closeVoting = async (contentId: string) => {
-    if (!isZk && !hasZkSession) {
-      setMessage(zkLoginGuardMessage());
-      return;
-    }
+   
     setClosingContent(contentId);
     setMessage("");
 
     try {
       if (!PACKAGE_ID || !VOTEBOOK_ID) throw new Error('Missing configuration');
-      
+
       const tx = new Transaction();
       tx.moveCall({
         target: `${PACKAGE_ID}::${MODULES.vote}::close_voting`,
@@ -427,7 +421,7 @@ export default function RewardsPage() {
 
       const res = await signAndExecute({ transaction: tx, chain: 'sui:devnet' });
       setMessage(`Success: Voting closed! Digest: ${(res as any)?.digest?.slice(0, 12)}...`);
-      
+
       setTimeout(() => {
         window.location.reload();
       }, 2000);
@@ -453,9 +447,9 @@ export default function RewardsPage() {
     <main className="min-h-screen p-8 relative overflow-hidden">
       {/* Animated Ambient Glows */}
       <div className="absolute top-20 right-1/4 w-96 h-96 bg-green-400 rounded-full opacity-10 blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
-      
+      <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+
       <div className="max-w-7xl mx-auto relative z-10 space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
@@ -507,16 +501,16 @@ export default function RewardsPage() {
         ) : (
           <>
             {/* Analytics Dashboard - will be added here */}
-            
+
             {/* Content List */}
             <div className="space-y-6">
               {myContent.map((content) => {
-              const status = poolStatus[content.id];
-              const isFunded = status?.funded || false;
-              const isDistributed = status?.distributed || false;
-              const isClosed = closedStatus[content.id] || false;
-              const poolAmount = status?.amount || "0.00";
-              const potValue = status?.potBalance || "0.00";                return (
+                const status = poolStatus[content.id];
+                const isFunded = status?.funded || false;
+                const isDistributed = status?.distributed || false;
+                const isClosed = closedStatus[content.id] || false;
+                const poolAmount = status?.amount || "0.00";
+                const potValue = status?.potBalance || "0.00"; return (
                   <div key={content.id} className="neuro-card space-y-4 hover:shadow-2xl transition-shadow duration-300">{/* Header Section */}
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1">
@@ -527,15 +521,15 @@ export default function RewardsPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             {content.timestamp}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                          {content.id?.slice(0, 8)}...{content.id?.slice(-6)}
-                        </span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            {content.id?.slice(0, 8)}...{content.id?.slice(-6)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
                       <div className="flex gap-2 flex-wrap justify-end">
                         {isClosed && (
                           <span className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-red-100 to-red-200 text-red-800 flex items-center gap-1">
@@ -593,112 +587,111 @@ export default function RewardsPage() {
                       </div>
                     </div>
 
-                  {/* Actions Section */}
-                  <div className="space-y-3">
-                    {/* Close Voting Button */}
-                    {!isClosed && (
-                      <button
-                        onClick={() => closeVoting(content.id)}
-                        disabled={closingContent === content.id || (!isZk && !hasZkSession)}
-                        className="neuro-btn w-full flex items-center justify-center gap-2 text-red-700 hover:scale-105 transition-transform disabled:opacity-60"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        {closingContent === content.id ? 'Closing...' : 'Close Voting'}
-                      </button>
-                    )}
+                    {/* Actions Section */}
+                    <div className="space-y-3">
+                      {/* Close Voting Button */}
+                      {!isClosed && (
+                        <button
+                          onClick={() => closeVoting(content.id)}
+                          disabled={closingContent === content.id }
+                          className="neuro-btn w-full flex items-center justify-center gap-2 text-red-700 hover:scale-105 transition-transform disabled:opacity-60"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          {closingContent === content.id ? 'Closing...' : 'Close Voting'}
+                        </button>
+                      )}
 
-                    {/* Fund Reward Pool */}
-                    {!isDistributed && (
-                      <div className="glass-panel space-y-3 border-2 border-blue-200">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {/* Fund Reward Pool */}
+                      {!isDistributed && (
+                        <div className="glass-panel space-y-3 border-2 border-blue-200">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h4 className="font-semibold text-gray-800 text-sm">
+                              {isFunded ? 'Add More to Reward Pool' : 'Fund Reward Pool'}
+                            </h4>
+                          </div>
+                          <div className="flex gap-3">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.1"
+                              placeholder="Min 0.1 SUI"
+                              className="neuro-input flex-1 text-sm"
+                              value={fundingAmount[content.id] || ""}
+                              onChange={(e) => setFundingAmount({
+                                ...fundingAmount,
+                                [content.id]: e.target.value
+                              })}
+                            />
+                            <button
+                              onClick={() => fundRewardPool(content.id)}
+                              className="neuro-btn-primary px-6 hover:scale-105 transition-transform disabled:opacity-60"
+                              disabled={!fundingAmount[content.id] || parseFloat(fundingAmount[content.id]) < 0.1}
+                            >
+                              {isFunded ? '+ Add' : 'Fund Pool'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Distribute Rewards */}
+                      {isFunded && !isDistributed && isClosed && (
+                        <button
+                          onClick={() => distributeRewards(content.id)}
+                          disabled={distributingContent === content.id }
+                          className="neuro-btn-primary w-full flex items-center justify-center gap-2 text-lg py-4 hover:scale-105 transition-transform disabled:opacity-60"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <h4 className="font-semibold text-gray-800 text-sm">
-                            {isFunded ? 'Add More to Reward Pool' : 'Fund Reward Pool'}
-                          </h4>
-                        </div>
-                        <div className="flex gap-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.1"
-                            placeholder="Min 0.1 SUI"
-                            className="neuro-input flex-1 text-sm"
-                            value={fundingAmount[content.id] || ""}
-                            onChange={(e) => setFundingAmount({
-                              ...fundingAmount,
-                              [content.id]: e.target.value
-                            })}
-                          />
-                          <button
-                            onClick={() => fundRewardPool(content.id)}
-                            className="neuro-btn-primary px-6 hover:scale-105 transition-transform disabled:opacity-60"
-                            disabled={!isZk && !hasZkSession}
-                          >
-                            {isFunded ? '+ Add' : 'Fund Pool'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                          {distributingContent === content.id ? '⏳ Distributing...' : '🎉 Distribute Rewards Now'}
+                        </button>
+                      )}
 
-                    {/* Distribute Rewards */}
-                    {isFunded && !isDistributed && isClosed && (
-                      <button
-                        onClick={() => distributeRewards(content.id)}
-                        disabled={distributingContent === content.id || (!isZk && !hasZkSession)}
-                        className="neuro-btn-primary w-full flex items-center justify-center gap-2 text-lg py-4 hover:scale-105 transition-transform disabled:opacity-60"
-                      >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {distributingContent === content.id ? '⏳ Distributing...' : '🎉 Distribute Rewards Now'}
-                      </button>
-                    )}
-
-                    {isFunded && !isClosed && (
-                      <div className="glass-panel border-2 border-yellow-300 text-center py-3 bg-yellow-50">
-                        <div className="flex items-center justify-center gap-2">
-                          <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                          <p className="text-sm text-yellow-700 font-medium">
-                            Close voting before distributing rewards
-                          </p>
+                      {isFunded && !isClosed && (
+                        <div className="glass-panel border-2 border-yellow-300 text-center py-3 bg-yellow-50">
+                          <div className="flex items-center justify-center gap-2">
+                            <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p className="text-sm text-yellow-700 font-medium">
+                              Close voting before distributing rewards
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {isDistributed && (
-                      <div className="glass-panel border-2 border-green-300 text-center py-4 bg-green-50">
-                        <div className="flex flex-col items-center gap-2">
-                          <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <p className="text-sm text-green-700 font-medium">
-                            Rewards Successfully Distributed!
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            {poolAmount} SUI distributed to {content.voteCount} validator{content.voteCount !== 1 ? 's' : ''}
-                          </p>
+                      {isDistributed && (
+                        <div className="glass-panel border-2 border-green-300 text-center py-4 bg-green-50">
+                          <div className="flex flex-col items-center gap-2">
+                            <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm text-green-700 font-medium">
+                              Rewards Successfully Distributed!
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {poolAmount} SUI distributed to {content.voteCount} validator{content.voteCount !== 1 ? 's' : ''}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           </>
         )}
 
         {message && (
-          <div className={`glass-panel text-center py-4 animate-pulse ${
-            message.startsWith('Success') ? 'border-2 border-green-300 bg-green-50' : 
-            'border-2 border-red-300 bg-red-50'
-          }`}>
+          <div className={`glass-panel text-center py-4 animate-pulse ${message.startsWith('Success') ? 'border-2 border-green-300 bg-green-50' :
+              'border-2 border-red-300 bg-red-50'
+            }`}>
             <p className="font-medium text-gray-800 text-lg">{message}</p>
           </div>
         )}

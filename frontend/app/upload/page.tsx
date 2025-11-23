@@ -40,7 +40,7 @@ export default function UploadPage() {
       const arrayBuffer = await file.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       const fileType = await fileTypeFromBuffer(uint8Array);
-      
+
       if (fileType) {
         if (fileType.mime.startsWith('image/')) return 'image';
         if (fileType.mime.startsWith('video/')) return 'video';
@@ -48,7 +48,7 @@ export default function UploadPage() {
         if (fileType.mime.startsWith('audio/')) return 'audio';
         if (fileType.mime.startsWith('text/')) return 'text';
       }
-      
+
       return 'unknown';
     } catch (e) {
       console.warn('Failed to detect file type:', e);
@@ -73,19 +73,38 @@ export default function UploadPage() {
       return;
     }
 
+    // Validate file count
+    if (files.length > 5) {
+      toast.error("Maximum 5 files allowed");
+      return;
+    }
+
+    // Validate file sizes (max 10MB per file)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File "${file.name}" exceeds 10MB limit (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+        return;
+      }
+    }
+
     try {
       const uploadToast = toast.loading("Uploading to Walrus storage...");
 
       // Upload all files with type detection
       const results = await uploadAllToWalrus(files);
       const primaryCid = results[0].blobId;
-      const ipfsPayload = JSON.stringify({ 
-        cids: results.map(r => r.blobId),
-        files: results.map(r => ({ blobId: r.blobId, type: r.type, name: r.name }))
-      });
       
+      // Store only CIDs array in payload (file types go to event)
+      // This keeps payload under 200 bytes for on-chain storage
+      const ipfsPayload = JSON.stringify(results.map(r => r.blobId));
+
       // Create comma-separated file types string for on-chain event
       const fileTypesString = results.map(r => r.type).join(',');
+      
+      console.log('Payload length:', ipfsPayload.length, 'bytes');
+      console.log('File types:', fileTypesString);
 
       setCid(primaryCid);
       toast.loading(`Stored on Walrus (x${results.length}). Submitting on-chain...`, { id: uploadToast });
@@ -209,13 +228,22 @@ export default function UploadPage() {
 
           <div>
             <label className="block mb-3 font-medium text-gray-700 text-sm">Upload Files (images, pdf, txt, json, mp4, etc.)</label>
+            <p className="text-xs text-gray-500 mb-2">Maximum 5 files, 10MB per file</p>
             <div className="relative">
               <input
                 type="file"
                 multiple
                 id="file-upload"
                 className="hidden"
-                onChange={(e) => setFiles(e.target.files)}
+                onChange={(e) => {
+                  const selectedFiles = e.target.files;
+                  if (selectedFiles && selectedFiles.length > 5) {
+                    toast.error("Maximum 5 files allowed");
+                    e.target.value = '';
+                    return;
+                  }
+                  setFiles(selectedFiles);
+                }}
               />
               <label
                 htmlFor="file-upload"
@@ -224,7 +252,7 @@ export default function UploadPage() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                Choose Files (3-5 variants)
+                Choose Files (2-5 variants)
               </label>
             </div>
             {files && files.length > 0 && (
@@ -233,8 +261,10 @@ export default function UploadPage() {
                 <div className="flex flex-wrap gap-3">
                   {Array.from(files).map((file, i) => {
                     const isImage = file.type.startsWith('image/');
+                    const fileSizeMB = file.size / 1024 / 1024;
+                    const isOverLimit = fileSizeMB > 10;
                     return (
-                      <div key={i} className="w-32">
+                      <div key={i} className={`w-32 ${isOverLimit ? 'ring-2 ring-red-400' : ''}`}>
                         <div className="h-20 w-full rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
                           {isImage ? (
                             <img
@@ -250,18 +280,24 @@ export default function UploadPage() {
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-center mt-1 text-gray-700">{(file.size / 1024).toFixed(0)} KB</div>
+                        <div className={`text-xs text-center mt-1 ${isOverLimit ? 'text-red-600 font-semibold' : 'text-gray-700'}`}>
+                          {fileSizeMB >= 1 ? `${fileSizeMB.toFixed(1)} MB` : `${(file.size / 1024).toFixed(0)} KB`}
+                          {isOverLimit && ' ⚠️'}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
+                {Array.from(files).some(f => f.size > 10 * 1024 * 1024) && (
+                  <p className="text-xs text-red-600 font-medium mt-2">⚠️ One or more files exceed 10MB limit</p>
+                )}
               </div>
             )}
           </div>
 
           <button
             onClick={onUpload}
-            disabled={!account || !files || files.length === 0}
+            disabled={!account || !files || files.length <= 1}
             className="neuro-btn-primary w-full text-base font-semibold"
           >
             Upload to Walrus & Register On-Chain

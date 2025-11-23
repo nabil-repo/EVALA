@@ -144,21 +144,32 @@ export default function VotePage() {
   };
 
 
-  // Fetch file types for all CIDs (prioritize metadata, fallback to detection)
+  // Fetch file types for all CIDs (prioritize event data, then metadata, fallback to detection)
   useEffect(() => {
     const fetchFileTypes = async () => {
-      // Extract file types from metadata (new format)
       const metadataTypes: Record<string, 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'> = {};
       let hasMetadata = false;
 
       content.forEach(c => {
+        // Priority 1: File types from event data (fastest, stored on-chain)
+        if (c.fileTypes && c.fileTypes.length > 0 && c.cids.length === c.fileTypes.length) {
+          hasMetadata = true;
+          c.cids.forEach((cid, idx) => {
+            const type = c.fileTypes![idx] as 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown';
+            metadataTypes[cid] = type;
+            console.log(`Loaded file type from event: ${cid} -> ${type}`);
+          });
+          return;
+        }
+
+        // Priority 2: File types from JSON payload (legacy)
         const parsed = parseCids(c.ipfs);
         if (Object.keys(parsed.fileTypes).length > 0) {
           hasMetadata = true;
           Object.entries(parsed.fileTypes).forEach(([cid, type]) => {
             const validType = type as 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown';
             metadataTypes[cid] = validType;
-            console.log(`Loaded file type from metadata: ${cid} -> ${validType}`);
+            console.log(`Loaded file type from JSON metadata: ${cid} -> ${validType}`);
           });
         }
       });
@@ -189,7 +200,7 @@ export default function VotePage() {
     }
   }, [content]);  // Render file preview based on type
   const renderFilePreview = (cid: string, index: number) => {
-    const fileType = fileTypes[cid] || 'image';
+    const fileType = fileTypes[cid] || 'unknown';
     const url = walrusBlobUrl(cid) || '';
 
     switch (fileType) {
@@ -533,10 +544,7 @@ export default function VotePage() {
   }, [account?.address, client]);
 
   const mintReputation = async () => {
-    if (!isZk && !hasZkSession) {
-      toast.error(zkLoginGuardMessage());
-      return;
-    }
+
     if (!account?.address) {
       toast.error("Please connect your wallet");
       return;
@@ -570,16 +578,13 @@ export default function VotePage() {
   };
 
   async function castVote(id: string, variant: number) {
-    if (!isZk && !hasZkSession) {
-      toast.error(zkLoginGuardMessage());
-      return;
-    }
+
     const stored = getZkIdToken();
     const jwt = stored || '';
-    if (!jwt) {
-      toast.error("zkLogin session not found. Please sign in.");
-      return;
-    }
+    // if (!jwt) {
+    //   toast.error("zkLogin session not found. Please sign in.");
+    //   return;
+    // }
     // Check if user has reputation NFT before voting
     if (hasReputation === false) {
       toast.error("You need a Reputation NFT to vote. Please mint one first!");
@@ -842,19 +847,77 @@ export default function VotePage() {
                               </div>
                             </div>
                           </button>
-                          {/* Open Button */}
-                          <a
-                            href={walrusBlobUrl(cid) || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
+                          {/* Preview/Open Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = walrusBlobUrl(cid);
+                              if (!url) return;
+
+                              const fileType = fileTypes[cid] || 'image';
+
+                              // Create a custom preview page for all file types
+                              const getPreviewContent = () => {
+                                switch (fileType) {
+                                  case 'image':
+                                    return '<img src="' + url + '" style="max-width: 100%; height: auto; border-radius: 8px;" alt="Image preview" />';
+                                  case 'video':
+                                    return '<video controls style="max-width: 100%; height: auto; border-radius: 8px;"><source src="' + url + '" type="video/mp4">Your browser does not support video playback.</video>';
+                                  case 'pdf':
+                                    return '<iframe src="' + url + '" style="width: 100%; height: 80vh; border: none; border-radius: 8px;"></iframe>';
+                                  case 'audio':
+                                    return '<audio controls style="width: 100%;"><source src="' + url + '">Your browser does not support audio playback.</audio>';
+                                  case 'text':
+                                    return '<iframe src="' + url + '" style="width: 100%; height: 80vh; border: 1px solid #ddd; border-radius: 8px; background: white;"></iframe>';
+                                  default:
+                                    return '<p>Preview not available for this file type.</p><p><a href="' + url + '" target="_blank" style="color: #6366f1; text-decoration: underline;">Open in new tab</a></p>';
+                                }
+                              };
+
+                              const htmlContent = '<!DOCTYPE html>' +
+                                '<html>' +
+                                '<head>' +
+                                '<title>Preview - ' + fileType.toUpperCase() + '</title>' +
+                                '<meta charset="utf-8">' +
+                                '<style>' +
+                                '* { margin: 0; padding: 0; box-sizing: border-box; }' +
+                                'body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; display: flex; flex-direction: column; min-height: 100vh; padding: 20px; }' +
+                                '.header { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }' +
+                                '.header h2 { color: #333; font-size: 20px; margin-bottom: 8px; }' +
+                                '.header p { color: #666; font-size: 13px; word-break: break-all; }' +
+                                '.content { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }' +
+                                'a { color: #6366f1; text-decoration: none; font-weight: 500; }' +
+                                'a:hover { text-decoration: underline; }' +
+                                '</style>' +
+                                '</head>' +
+                                '<body>' +
+                                '<div class="header">' +
+                                '<h2>Content Preview - ' + fileType.toUpperCase() + '</h2>' +
+                                '<p>Blob ID: ' + cid + '</p>' +
+                                '</div>' +
+                                '<div class="content">' +
+                                getPreviewContent() +
+                                '</div>' +
+                                '</body>' +
+                                '</html>';
+
+                              const blob = new Blob([htmlContent], { type: 'text/html' });
+                              const blobUrl = URL.createObjectURL(blob);
+                              const previewWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+
+                              // Clean up the blob URL after window opens
+                              if (previewWindow) {
+                                setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                              }
+                            }}
                             className="absolute top-2 left-2 z-10 px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-700 text-xs font-medium shadow-md transition-all duration-200 flex items-center gap-1 hover:scale-105"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
-                            Open
-                          </a>
+                            FullScreen
+                          </button>
                         </div>
                       );
                     })}
@@ -870,18 +933,20 @@ export default function VotePage() {
                         checked={!!privateMode[c.id]}
                         onChange={(e) => setPrivateMode({ ...privateMode, [c.id]: e.target.checked })}
                       />
-                      Private vote (zkLogin recommended)
+                      Private vote (zkLogin)
                     </label>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-600">Prediction stake (SUI):</span>
-                      <input
-                        value={stakeAmount[c.id] || ''}
-                        onChange={(e) => setStakeAmount({ ...stakeAmount, [c.id]: e.target.value })}
-                        placeholder="0.0"
-                        className="neuro-input w-28 text-sm"
-                        inputMode="decimal"
-                      />
-                    </div>
+                    {privateMode[c.id] && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-600">Prediction stake (SUI):</span>
+                        <input
+                          value={stakeAmount[c.id] || ''}
+                          onChange={(e) => setStakeAmount({ ...stakeAmount, [c.id]: e.target.value })}
+                          placeholder="0.0"
+                          className="neuro-input w-28 text-sm"
+                          inputMode="decimal"
+                        />
+                      </div>
+                    )}
                   </div>
                   {privateMode[c.id] && !pollsByContent[c.id.toLowerCase()] && (
                     <p className="text-xs text-yellow-700 mt-2">
@@ -932,7 +997,7 @@ export default function VotePage() {
                 ) : (
                   <button
                     onClick={() => castVote(c.id, selected[c.id] ?? 0)}
-                    disabled={(!isZk && !hasZkSession) || selected[c.id] === undefined || checkingReputation || (!account?.address && !privateMode[c.id])}
+                    disabled={alreadyVoted.has(c.id.toLowerCase()) || selected[c.id] === undefined || checkingReputation || (!account?.address && !privateMode[c.id])}
                     className="neuro-btn-primary w-full text-base font-semibold flex items-center justify-center gap-3"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

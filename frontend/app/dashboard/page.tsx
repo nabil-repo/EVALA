@@ -33,6 +33,8 @@ export default function DashboardPage() {
 
       try {
         // Fetch user's objects to find Reputation NFT
+        console.log(`Querying for Reputation NFT: owner=${account.address}, type=${PACKAGE_ID}::${MODULES.reputation}::Reputation`);
+
         const objects = await client.getOwnedObjects({
           owner: account.address,
           filter: {
@@ -44,14 +46,21 @@ export default function DashboardPage() {
           }
         });
 
+        console.log(`Found ${objects.data.length} Reputation NFT(s)`);
+        let repIdLocal: string | null = null;
         if (objects.data.length > 0) {
           const repObject = objects.data[0];
+          console.log('Reputation NFT object:', repObject);
           const content = (repObject.data as any)?.content;
           if (content?.fields) {
             setReputation(parseInt(content.fields.score || "0"));
             setTasks(parseInt(content.fields.task_count || "0"));
           }
-          setReputationId(repObject.data?.objectId || null);
+          repIdLocal = repObject.data?.objectId || null;
+          console.log(`Setting reputationId state: ${repIdLocal}`);
+          setReputationId(repIdLocal);
+        } else {
+          console.log('No Reputation NFT found for this address');
         }
 
         // Fetch vote events from this user
@@ -111,6 +120,8 @@ export default function DashboardPage() {
           order: 'descending',
         });
 
+        console.log(`Found ${rewardEvents.data.length} total RewardDistributed events`);
+
         let totalRewards = 0;
         const rewardedContentIds = new Set<string>();
         rewardEvents.data.forEach((ev: any) => {
@@ -121,22 +132,26 @@ export default function DashboardPage() {
             const contentId = ev.parsedJson?.content_id;
             if (contentId) {
               rewardedContentIds.add(contentId);
+              console.log(`User is winner for content ${contentId}, reward: ${(total / winners.length / 1_000_000_000).toFixed(2)} SUI`);
             }
           }
         });
 
+        console.log(`User has won rewards for ${rewardedContentIds.size} content items`);
         setRewards((totalRewards / 1_000_000_000).toFixed(2)); // Convert MIST to SUI
 
         // Check on-chain which tasks are already claimed using is_claimed function
         let unclaimedTasksCount = 0;
-        if (reputationId && rewardedContentIds.size > 0) {
+        console.log(`Checking claim status with local repId=${repIdLocal}, rewardedContentIds.size=${rewardedContentIds.size}`);
+
+        if (repIdLocal && rewardedContentIds.size > 0) {
           for (const contentId of Array.from(rewardedContentIds)) {
             try {
               const tx = new Transaction();
               tx.moveCall({
                 target: `${PACKAGE_ID}::${MODULES.reputation}::is_claimed`,
                 arguments: [
-                  tx.object(reputationId),
+                  tx.object(repIdLocal),
                   tx.pure.id(contentId),
                 ]
               });
@@ -145,19 +160,24 @@ export default function DashboardPage() {
                 sender: account.address,
                 transactionBlock: tx,
               });
-              
-              // Check if this content is not claimed yet
-              // returnValues[0] is a Uint8Array where first byte is the boolean (1=true, 0=false)
+
               const returnValue = result.results?.[0]?.returnValues?.[0] as number[] | undefined;
               const isClaimed = returnValue && returnValue.length > 0 && returnValue[0] === 1;
+              console.log(`Content ${contentId}: isClaimed=${isClaimed}, rawReturn=${JSON.stringify(returnValue)}`);
               if (!isClaimed) {
                 unclaimedTasksCount++;
+                console.log(`Unclaimed reputation for content ${contentId}`);
               }
             } catch (e) {
               console.error(`Error checking claim status for ${contentId}:`, e);
             }
           }
+        } else {
+          if (!repIdLocal) console.log('No reputation NFT (local) found - mint required.');
+          if (rewardedContentIds.size === 0) console.log('No rewarded content IDs found.');
         }
+
+        console.log(`Final unclaimedTasksCount=${unclaimedTasksCount}`);
         setUnclaimedCount(unclaimedTasksCount);
       } catch (e) {
         console.error("Error fetching dashboard data:", e);
@@ -559,10 +579,10 @@ function ReputationManager() {
   }, [account?.address, client]);
 
   const mintReputation = async () => {
-    if (!isZk && !hasZkSession) {
-      setMessage(zkLoginGuardMessage());
-      return;
-    }
+    // if (!isZk && !hasZkSession) {
+    //   setMessage(zkLoginGuardMessage());
+    //   return;
+    // }
     if (!account?.address) {
       setMessage("Error: Please connect your wallet");
       return;
@@ -597,10 +617,10 @@ function ReputationManager() {
   };
 
   const claimReputation = async () => {
-    if (!isZk && !hasZkSession) {
-      setMessage(zkLoginGuardMessage());
-      return;
-    }
+    // if (!isZk && !hasZkSession) {
+    //   setMessage(zkLoginGuardMessage());
+    //   return;
+    // }
     if (!account?.address || !reputationId) {
       setMessage("Error: Reputation NFT not found");
       return;
@@ -677,7 +697,7 @@ function ReputationManager() {
           <button
             className="neuro-btn-primary w-full flex items-center justify-center gap-2"
             onClick={mintReputation}
-            disabled={minting || !account || (!isZk && !hasZkSession)}
+            disabled={minting || !account}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />

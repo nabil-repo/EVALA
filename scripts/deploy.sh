@@ -17,3 +17,4 @@ sui client publish --gas-budget 100000000 --json --skip-fetch-latest-git-deps --
 cd - >/dev/null
 
 echo "Remember to set NEXT_PUBLIC_PACKAGE_ID in frontend/.env"
+

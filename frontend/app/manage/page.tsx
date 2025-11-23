@@ -425,7 +425,7 @@ export default function ManagePage() {
                     </div>
                 )}
 
-                <div className="glass-panel p-6 space-y-3">
+                {/* <div className="glass-panel p-6 space-y-3">
                     <h3 className="font-semibold text-gray-800">Management Actions</h3>
                     <ul className="text-sm text-gray-600 space-y-2">
                         <li><strong>Create Poll:</strong> Set up a time-limited private voting poll for your content (public or zkLogin-only)</li>
@@ -433,7 +433,7 @@ export default function ManagePage() {
                         <li><strong>Close Voting:</strong> Stop accepting new votes for content in the VoteBook</li>
                         <li><strong>Delete Content:</strong> Remove content from the platform (requires creator permission)</li>
                     </ul>
-                </div>
+                </div> */}
             </div>
         </main>
     );

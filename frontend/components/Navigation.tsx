@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ConnectButton } from '@mysten/dapp-kit';
 import ZkLoginBanner from './ZkLoginBanner';
-import Image from 'next/image';  
+import Image from 'next/image';
 
 export function Navigation() {
   return (
@@ -17,11 +17,11 @@ export function Navigation() {
         </Link>
 
         <div className="hidden md:flex items-center gap-2">
-          <Link href="/upload" className="nav-link">
-            Upload
-          </Link>
           <Link href="/vote" className="nav-link">
             Vote
+          </Link>
+          <Link href="/upload" className="nav-link">
+            Upload
           </Link>
           <Link href="/manage" className="nav-link">
             Manage
