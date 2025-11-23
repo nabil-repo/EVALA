@@ -1,58 +1,31 @@
 import { NextResponse } from 'next/server'
-import { walrusBlobUrl } from '@/lib/walrus'
 
 type DescribeRequest = {
-  cids: string[]
-  files?: { name: string; type: string }[]
+  title?: string
 }
 
 export async function POST(req: Request) {
   try {
     const body: DescribeRequest = await req.json();
-    const { cids = [], files = [] } = body;
+    console.log('Describe request body:', body);
 
     if (!process.env.OPENROUTER_API_KEY) {
+      console.error('OPENROUTER_API_KEY not configured');
       return NextResponse.json({ error: 'OPENROUTER_API_KEY not configured' }, { status: 500 });
     }
 
-    // Build a prompt that includes inline text for small/text files, and URLs for binaries
-    const items: string[] = [];
-    for (let i = 0; i < cids.length; i++) {
-      const cid = cids[i];
-      const url = walrusBlobUrl(cid);
-      let summaryPiece = `Blob ${cid} - URL: ${url}`;
-
-      try {
-        const head = await fetch(url, { method: 'HEAD' });
-        const ct = head.headers.get('content-type') || '';
-        const len = parseInt(head.headers.get('content-length') || '0', 10);
-
-        // If text-like or small (< 30 KB), fetch the text content to include
-        if (ct.startsWith('text/') || ct.includes('json') || (!ct && len > 0 && len < 30_000)) {
-          const fetched = await fetch(url);
-          const text = await fetched.text();
-          const excerpt = text.length > 3000 ? text.slice(0, 3000) + '\n...[truncated]' : text;
-          summaryPiece += `\nContent:\n${excerpt}`;
-        } else {
-          // include filename if provided
-          const f = files[i];
-          if (f) summaryPiece += `\nFilename: ${f.name}  Type: ${f.type}`;
-        }
-      } catch (e) {
-        // network error - still include URL
-        const f = files[i];
-        if (f) summaryPiece += `\nFilename: ${f.name}  Type: ${f.type}`;
-      }
-
-      items.push(summaryPiece);
+    // Use only the provided title for description generation (per request)
+    const title = (body as any).title || '';
+    const items = [] as string[];
+    if (title) {
+      items.push(`Title: ${title}`);
     }
-
-    const prompt = `Files:\n${items.join('\n\n')}`;
+    const prompt = `You will be given a content title. Write a concise 1-3 sentence description suitable for a creator to use as the content description for the voters . Return a JSON object with a single key \"title\" mapping to the generated description. Do not include any extra text.\n\n${items.join('\n\n')}`;
 
     const systemPrompt = `You are a concise captioning assistant. Output ONLY a single valid JSON object mapping blobId -> short description (1-3 sentences). Do not include any explanation, headings, or extra text. Ensure the output is valid JSON.`;
 
     const openRouterCall = async (model: string) => {
-      return fetch('https://api.openrouter.ai/v1/chat/completions', {
+      return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,6 +47,7 @@ export async function POST(req: Request) {
 
     // Try primary model
     let orRes = await openRouterCall(defaultModel);
+    //console.log("orRes",orRes)
     if (!orRes.ok) {
       // try fallback model once
       const text = await orRes.text();
@@ -84,6 +58,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'OpenRouter calls failed', details: [text, text2] }, { status: 500 });
       }
     }
+    // console.log('OpenRouter response:', orRes.status, orRes.headers.get('content-type'));
 
     const orJson = await orRes.json();
     let assistantText = '';
@@ -132,18 +107,21 @@ export async function POST(req: Request) {
     // Final fallback: best-effort mapping from assistant text
     if (!parsed) {
       parsed = {};
-      for (const cid of cids) parsed[cid] = 'No description available.';
-      // attempt to find short snippets around blob ids
-      for (const cid of cids) {
-        const idx = assistantText.indexOf(cid);
-        if (idx !== -1) {
-          parsed[cid] = assistantText.slice(idx + cid.length, idx + cid.length + 200).trim() || parsed[cid];
+      const lines = assistantText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      for (const line of lines) {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const key = parts[0].trim();
+          const value = parts.slice(1).join(':').trim();
+          if (key && value) parsed[key] = value;
         }
       }
+
     }
 
     return NextResponse.json({ summaries: parsed });
   } catch (e: any) {
+    console.error('Describe API error:', e);
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }
 }

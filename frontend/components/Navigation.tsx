@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import { ConnectButton } from '@mysten/dapp-kit';
 import ZkLoginBanner from './ZkLoginBanner';
+import Image from 'next/image';  
 
 export function Navigation() {
   return (
     <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl px-4">
       <div className="nav-neuro rounded-[24px] py-4 px-6 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center glow-purple group-hover:scale-110 transition-transform">
-            <span className="text-white font-bold text-lg">E</span>
+          <div className="rounded-[14px] flex items-center justify-center glow-purple group-hover:scale-110 transition-transform">
+            <Image src="/EVALA_logo.png" alt="Evala Logo" width={50} height={50} />
           </div>
           <span className="font-semibold text-xl gradient-text">Evala</span>
         </Link>

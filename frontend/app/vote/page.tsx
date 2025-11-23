@@ -3,11 +3,11 @@ import { useState, useEffect } from "react";
 import { ConnectButton, useSuiClient, useSignAndExecuteTransaction, useCurrentAccount } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { toast } from "sonner";
+import { fileTypeFromBuffer } from "file-type";
 import { MODULES, PACKAGE_ID, VOTEBOOK_ID } from "@/lib/config";
 import { walrusBlobUrl } from "@/lib/walrus";
 import { walrusUploadJSON } from "@/lib/walrus";
 import { useIsZkLogin, zkLoginGuardMessage } from "@/lib/zk";
-import ZkLoginBanner from "@/components/ZkLoginBanner";
 import { useZkSession, getZkIdToken } from "@/lib/zkSession";
 import { executeWithZkLogin } from "@/lib/zkloginExec";
 
@@ -26,6 +26,7 @@ export default function VotePage() {
   const [stakeAmount, setStakeAmount] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "live" | "closed">("all");
+  const [fileTypes, setFileTypes] = useState<Record<string, 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'>>({});
 
   // Decode Move vector<u8> (which may be emitted as base64 or 0x-hex) to a UTF-8 string
   const decodeIpfs = (val: unknown): string => {
@@ -80,6 +81,140 @@ export default function VotePage() {
     } catch {
       // Not JSON: treat as plain CID
       return { primary: ipfsString, list: [ipfsString] };
+    }
+  };
+
+  // Detect file type from CID or URL using magic bytes
+  const detectFileType = async (cid: string) => {
+    try {
+      const url = walrusBlobUrl(cid);
+      if (!url) return "unknown";
+
+      // Step 1: fetch full blob
+      const res = await fetch(url);
+      const blob = await res.blob();
+
+      // Step 2: browser MIME sniffing
+      const mime = blob.type; // browser-sniffed mime
+
+      console.log("Browser MIME:", mime);
+
+      if (mime.startsWith("image/")) return "image";
+      if (mime.startsWith("video/")) return "video";
+      if (mime === "application/pdf") return "pdf";
+      if (mime.startsWith("audio/")) return "audio";
+      if (mime.startsWith("text/")) return "text";
+
+      // Step 3: fallback to file-type
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const ft = await fileTypeFromBuffer(buf);
+      if (ft) {
+        if (ft.mime.startsWith("image/")) return "image";
+        if (ft.mime.startsWith("video/")) return "video";
+        if (ft.mime === "application/pdf") return "pdf";
+        if (ft.mime.startsWith("audio/")) return "audio";
+        if (ft.mime.startsWith("text/")) return "text";
+      }
+
+      return "unknown";
+    } catch (err) {
+      console.warn("Detection failed:", err);
+      return "unknown";
+    }
+  };
+
+
+  // Fetch file types for all CIDs
+  useEffect(() => {
+    const fetchFileTypes = async () => {
+      const allCids = content.flatMap(c => c.cids || []);
+      const uniqueCids = [...new Set(allCids)];
+
+      for (const cid of uniqueCids) {
+        if (!fileTypes[cid]) {
+          const type = await detectFileType(cid);
+          setFileTypes(prev => ({ ...prev, [cid]: type }));
+        }
+      }
+    };
+
+    if (content.length > 0) {
+      fetchFileTypes();
+    }
+  }, [content]);
+
+  // Render file preview based on type
+  const renderFilePreview = (cid: string, index: number) => {
+    const fileType = fileTypes[cid] || 'image';
+    const url = walrusBlobUrl(cid) || '';
+
+    switch (fileType) {
+      case 'unknown':
+        return (
+          <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm text-gray-700 font-medium mt-2">Unknown File</p>
+            </div>
+          </div>
+        );
+      case 'video':
+        return (
+          <div className="w-full h-48 bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center relative">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+              </svg>
+              <p className="text-sm text-blue-700 font-medium mt-2">Video File</p>
+            </div>
+          </div>
+        );
+      case 'pdf':
+        return (
+          <div className="w-full h-48 bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm text-red-700 font-medium mt-2">PDF Document</p>
+            </div>
+          </div>
+        );
+      case 'audio':
+        return (
+          <div className="w-full h-48 bg-gradient-to-br from-purple-100 to-pink-200 flex items-center justify-center">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+              </svg>
+              <p className="text-sm text-purple-700 font-medium mt-2">Audio File</p>
+            </div>
+          </div>
+        );
+      case 'text':
+        return (
+          <div className="w-full h-48 bg-gradient-to-br from-green-100 to-emerald-200 flex items-center justify-center">
+            <div className="text-center">
+              <svg className="w-16 h-16 mx-auto text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                <path d="M8 8a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3A.5.5 0 018 8zM8 11a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3A.5.5 0 018 11zM8 14a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3A.5.5 0 018 14z" />
+              </svg>
+              <p className="text-sm text-green-700 font-medium mt-2">Text File</p>
+            </div>
+          </div>
+        );
+      case 'image':
+      default:
+        return (
+          <img
+            src={url}
+            alt={`Variant ${index}`}
+            className="w-full h-48 object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+          />
+        );
     }
   };
 
@@ -478,8 +613,8 @@ export default function VotePage() {
     <main className="min-h-screen p-8 relative overflow-hidden">
       {/* Animated Ambient Glows */}
       <div className="absolute top-20 left-1/4 w-96 h-96 bg-purple-400 rounded-full opacity-10 blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-40 right-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      <div className="absolute bottom-40 right-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
 
       <div className="max-w-5xl mx-auto relative z-10 space-y-8">
         {/* Header */}
@@ -633,35 +768,44 @@ export default function VotePage() {
                       const isSelected = selected[c.id] === i;
 
                       return (
-                        <button
-                          key={cid + i}
-                          onClick={() => setSelected({ ...selected, [c.id]: i })}
-                          className={`group variant-card transition-all duration-400 ${isSelected ? 'selected' : ''}`}
-                        >
-                          <div className="relative">
-                            <img
-                              src={walrusBlobUrl(cid) || ''}
-                              alt={`Variant ${i}`}
-                              className="w-full h-48 object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
-                            />
-                            {isSelected && (
-                              <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center glow-purple">
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          <div className="glass-panel">
-                            <div className="text-center">
-                              <p className="text-xs text-gray-600 font-medium">Variant {i}</p>
-                              <p className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                                {votes} {votes === 1 ? 'vote' : 'votes'}
-                              </p>
+                        <div key={cid + i} className="relative">
+                          <button
+                            onClick={() => setSelected({ ...selected, [c.id]: i })}
+                            className={`group variant-card transition-all duration-400 w-full ${isSelected ? 'selected' : ''}`}
+                          >
+                            <div className="relative">
+                              {renderFilePreview(cid, i)}
+                              {isSelected && (
+                                <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center glow-purple">
+                                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        </button>
+                            <div className="glass-panel">
+                              <div className="text-center">
+                                <p className="text-xs text-gray-600 font-medium">Variant {i}</p>
+                                <p className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                                  {votes} {votes === 1 ? 'vote' : 'votes'}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                          {/* Open Button */}
+                          <a
+                            href={walrusBlobUrl(cid) || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute top-2 left-2 z-10 px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-700 text-xs font-medium shadow-md transition-all duration-200 flex items-center gap-1 hover:scale-105"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            Open
+                          </a>
+                        </div>
                       );
                     })}
                   </div>

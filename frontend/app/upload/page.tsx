@@ -48,26 +48,6 @@ export default function UploadPage() {
       const primaryCid = cids[0];
       const ipfsPayload = JSON.stringify({ cids });
 
-      // Request auto-descriptions from server (OpenRouter)
-      setSummariesLoading(true);
-      try {
-        const describeResp = await fetch('/api/describe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cids, files: Array.from(files).map(f => ({ name: f.name, type: f.type })) }),
-        });
-        if (describeResp.ok) {
-          const data = await describeResp.json();
-          setSummaries(data.summaries || {});
-        } else {
-          console.warn('Describe API error', describeResp.status);
-        }
-      } catch (e) {
-        console.warn('Describe API failed', e);
-      } finally {
-        setSummariesLoading(false);
-      }
-
       setCid(primaryCid);
       toast.loading(`Stored on Walrus (x${cids.length}). Submitting on-chain...`, { id: uploadToast });
 
@@ -96,35 +76,23 @@ export default function UploadPage() {
   }
 
   async function generateDescriptions() {
-    if (!files || files.length < 1) {
-      toast.error('Please select files first');
-      return;
-    }
+
 
     setSummariesLoading(true);
     try {
-      let cids: string[] = uploadedCids || [];
-      if (!cids || cids.length !== files.length) {
-        const uploadToast = toast.loading('Uploading files to Walrus for description...');
-        try {
-          cids = await uploadAllToWalrus(files);
-          setUploadedCids(cids);
-          toast.success(`Uploaded ${cids.length} file(s)`, { id: uploadToast });
-        } catch (e: any) {
-          toast.error(e?.message || 'Upload failed', { id: uploadToast });
-          throw e;
-        }
-      }
+
 
       const resp = await fetch('/api/describe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cids, files: Array.from(files).map(f => ({ name: f.name, type: f.type })) }),
+        body: JSON.stringify({ title: title || 'Untitled' }),
       });
+
       if (!resp.ok) {
         const txt = await resp.text();
         toast.error(`Describe failed: ${resp.status}`);
         console.warn('describe failed', txt);
+        console.log('r', resp, txt);
         return;
       }
       const data = await resp.json();
@@ -142,8 +110,8 @@ export default function UploadPage() {
     <main className="min-h-screen p-8 relative overflow-hidden">
       {/* Animated Ambient Glows */}
       <div className="absolute top-20 left-1/4 w-96 h-96 bg-purple-400 rounded-full opacity-10 blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-40 right-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      <div className="absolute bottom-40 right-1/4 w-80 h-80 bg-blue-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-400 rounded-full opacity-10 blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
 
       <div className="max-w-3xl mx-auto relative z-10 space-y-8">
         {/* Header */}
@@ -180,14 +148,13 @@ export default function UploadPage() {
             <div className="flex gap-3 mt-2">
               <button
                 onClick={generateDescriptions}
-                disabled={!files || files.length === 0 || summariesLoading}
-                className="neuro-btn text-sm px-3 py-2"
+                disabled={!title || title.length === 0 || summariesLoading}
+                className="text-blue-800 neuro-btn bg-gradient-to-r from-fuchsia-400 to-sky-300  text-sm px-3 py-2"
               >
                 {summariesLoading ? 'Generating...' : 'Generate AI Description'}
               </button>
               <button
                 onClick={() => {
-                  // If there is at least one generated summary, use the first
                   const keys = Object.keys(summaries || {});
                   if (keys.length > 0) setDesc(summaries[keys[0]] || '');
                   else toast('No generated summaries yet');
@@ -243,7 +210,7 @@ export default function UploadPage() {
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-center mt-1 text-gray-700">{(file.size/1024).toFixed(0)} KB</div>
+                        <div className="text-xs text-center mt-1 text-gray-700">{(file.size / 1024).toFixed(0)} KB</div>
                       </div>
                     );
                   })}
@@ -254,7 +221,7 @@ export default function UploadPage() {
 
           <button
             onClick={onUpload}
-            disabled={!account || (!isZk && !hasZkSession) || !files || files.length === 0}
+            disabled={!account || !files || files.length === 0}
             className="neuro-btn-primary w-full text-base font-semibold"
           >
             Upload to Walrus & Register On-Chain
