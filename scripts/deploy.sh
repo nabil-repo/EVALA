@@ -16,5 +16,6 @@ sui client publish --gas-budget 100000000 --json --skip-fetch-latest-git-deps --
 # Return to original directory
 cd - >/dev/null
 
-echo "Remember to set NEXT_PUBLIC_PACKAGE_ID in frontend/.env"
+echo "Remember to set NEXT_PUBLIC_PACKAGE_ID,NEXT_PUBLIC_VOTEBOOK_ID,NEXT_PUBLIC_REPUTATION_ID,NEXT_PUBLIC_UPGRADE_CAP and NEXT_PUBLIC_DEPLOY_TX ,etc in frontend/.env"
+echo "You can find the IDs in the output above or by running:"
 
