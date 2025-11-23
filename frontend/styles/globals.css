@@ -1,0 +1,278 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Neumorphic Card */
+  .neuro-card {
+    @apply rounded-[32px] p-8;
+    background: linear-gradient(145deg, #ffffff 0%, #f0f4f8 100%);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+      20px 20px 40px rgba(174, 174, 192, 0.4),
+      -20px -20px 40px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neuro-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 
+      24px 24px 48px rgba(174, 174, 192, 0.5),
+      -24px -24px 48px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 0 60px rgba(139, 92, 246, 0.2);
+  }
+
+  /* Glass Panel */
+  .glass-panel {
+    @apply rounded-[24px] p-6;
+    background: linear-gradient(145deg, 
+      rgba(255, 255, 255, 0.95) 0%, 
+      rgba(240, 244, 248, 0.9) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 
+      12px 12px 24px rgba(174, 174, 192, 0.3),
+      -8px -8px 20px rgba(255, 255, 255, 0.95),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    transition: all 0.3s ease;
+  }
+
+  .glass-panel:hover {
+    box-shadow: 
+      14px 14px 28px rgba(174, 174, 192, 0.35),
+      -10px -10px 24px rgba(255, 255, 255, 1),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.95);
+  }
+
+  /* Neuro Button */
+  .neuro-btn {
+    @apply px-8 py-4 rounded-[20px] font-medium text-sm;
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    box-shadow: 
+      10px 10px 20px rgba(174, 174, 192, 0.4),
+      -10px -10px 20px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neuro-btn:hover:not(:disabled) {
+    box-shadow: 
+      12px 12px 24px rgba(174, 174, 192, 0.45),
+      -12px -12px 24px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 0 30px rgba(139, 92, 246, 0.25);
+    transform: translateY(-3px);
+  }
+
+  .neuro-btn:active:not(:disabled) {
+    box-shadow: 
+      inset 6px 6px 12px rgba(174, 174, 192, 0.3),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.8);
+    transform: translateY(0);
+  }
+
+  .neuro-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Primary Gradient Button */
+  .neuro-btn-primary {
+    @apply px-8 py-4 rounded-[20px] font-medium text-sm;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 
+      10px 10px 24px rgba(102, 126, 234, 0.4),
+      -4px -4px 12px rgba(255, 255, 255, 0.25),
+      inset 0 2px 4px rgba(255, 255, 255, 0.25),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neuro-btn-primary:hover:not(:disabled) {
+    box-shadow: 
+      12px 12px 28px rgba(102, 126, 234, 0.5),
+      -6px -6px 16px rgba(255, 255, 255, 0.3),
+      inset 0 2px 4px rgba(255, 255, 255, 0.3),
+      0 0 40px rgba(102, 126, 234, 0.6);
+    transform: translateY(-3px);
+  }
+
+  .neuro-btn-primary:active:not(:disabled) {
+    box-shadow: 
+      inset 6px 6px 12px rgba(102, 126, 234, 0.5),
+      inset -3px -3px 8px rgba(139, 92, 246, 0.3);
+    transform: translateY(0);
+  }
+
+  /* Input Field */
+  .neuro-input {
+    @apply w-full px-6 py-4 rounded-[20px] text-sm;
+    background: linear-gradient(145deg, #f0f4f8, #ffffff);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 
+      inset 6px 6px 12px rgba(174, 174, 192, 0.2),
+      inset -4px -4px 10px rgba(255, 255, 255, 0.9);
+    transition: all 0.3s ease;
+  }
+
+  .neuro-input:focus {
+    outline: none;
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    box-shadow: 
+      inset 6px 6px 14px rgba(174, 174, 192, 0.25),
+      inset -4px -4px 12px rgba(255, 255, 255, 1),
+      0 0 0 4px rgba(139, 92, 246, 0.15),
+      0 0 20px rgba(139, 92, 246, 0.1);
+  }
+
+  .neuro-input::placeholder {
+    color: rgba(107, 114, 128, 0.5);
+  }
+
+  /* Glow Effect */
+  .glow-blue {
+    filter: drop-shadow(0 0 20px rgba(96, 165, 250, 0.4));
+  }
+
+  .glow-purple {
+    filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.4));
+  }
+
+  .glow-pink {
+    filter: drop-shadow(0 0 20px rgba(236, 72, 153, 0.4));
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Variant Card - Enhanced Neumorphic */
+  .variant-card {
+    @apply rounded-[24px] overflow-hidden;
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    box-shadow: 
+      12px 12px 24px rgba(174, 174, 192, 0.4),
+      -8px -8px 20px rgba(255, 255, 255, 0.95),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .variant-card:hover {
+    box-shadow: 
+      16px 16px 32px rgba(174, 174, 192, 0.45),
+      -12px -12px 28px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 0 40px rgba(139, 92, 246, 0.2);
+    transform: translateY(-4px) scale(1.02);
+  }
+
+  .variant-card.selected {
+    background: linear-gradient(145deg, #f8f9ff, #ffffff);
+    box-shadow: 
+      0 0 0 3px rgba(139, 92, 246, 0.3),
+      16px 16px 32px rgba(139, 92, 246, 0.3),
+      -12px -12px 28px rgba(255, 255, 255, 1),
+      inset 0 2px 4px rgba(139, 92, 246, 0.1),
+      0 0 60px rgba(139, 92, 246, 0.4);
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+
+  /* Navigation Neuro */
+  .nav-neuro {
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+      8px 8px 20px rgba(174, 174, 192, 0.3),
+      -8px -8px 20px rgba(255, 255, 255, 0.95),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+  }
+
+  .nav-link {
+    @apply px-4 py-2 rounded-[14px] text-sm font-medium text-gray-700 transition-all duration-300;
+    background: linear-gradient(145deg, #e8ecf0, #f5f7fa);
+    /* box-shadow: 
+      inset 4px 4px 8px rgba(174, 174, 192, 0.25),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.9); */
+  }
+
+  .nav-link:hover {
+    color: #764ba2;
+    background: linear-gradient(145deg, #e5e9ed, #f2f4f7);
+    box-shadow: 
+      inset 5px 5px 10px rgba(174, 174, 192, 0.3),
+      inset -5px -5px 10px rgba(255, 255, 255, 1),
+      0 0 20px rgba(139, 92, 246, 0.1);
+  }
+
+  .nav-link:active {
+    box-shadow: 
+      inset 6px 6px 12px rgba(174, 174, 192, 0.35),
+      inset -6px -6px 12px rgba(255, 255, 255, 0.95);
+  }
+
+  /* Elevated Button (Play/Pause style) */
+  .elevated-btn {
+    @apply rounded-full w-16 h-16 flex items-center justify-center;
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    box-shadow: 
+      12px 12px 24px rgba(174, 174, 192, 0.4),
+      -12px -12px 24px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .elevated-btn:hover:not(:disabled) {
+    box-shadow: 
+      16px 16px 32px rgba(174, 174, 192, 0.45),
+      -16px -16px 32px rgba(255, 255, 255, 1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 0 40px rgba(139, 92, 246, 0.3);
+    transform: translateY(-4px);
+  }
+
+  .elevated-btn:active:not(:disabled) {
+    box-shadow: 
+      inset 8px 8px 16px rgba(174, 174, 192, 0.3),
+      inset -8px -8px 16px rgba(255, 255, 255, 0.9);
+    transform: translateY(0);
+  }
+
+  .elevated-btn.primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    box-shadow: 
+      12px 12px 28px rgba(102, 126, 234, 0.5),
+      -6px -6px 16px rgba(255, 255, 255, 0.3),
+      inset 0 2px 4px rgba(255, 255, 255, 0.25);
+  }
+
+  .elevated-btn.primary:hover:not(:disabled) {
+    box-shadow: 
+      16px 16px 36px rgba(102, 126, 234, 0.6),
+      -8px -8px 20px rgba(255, 255, 255, 0.4),
+      inset 0 2px 4px rgba(255, 255, 255, 0.3),
+      0 0 50px rgba(102, 126, 234, 0.7);
+  }
+}

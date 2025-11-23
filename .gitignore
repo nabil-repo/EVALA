@@ -1,0 +1,17 @@
+# Node
+node_modules/
+
+# Sui
+.move/build/
+
+# Env
+.env
+.env.*
+frontend/.env
+frontend/.next/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.md

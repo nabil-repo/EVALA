@@ -1,0 +1,12 @@
+[package]
+name = "evala"
+version = "0.0.1"
+edition = "2024.beta"
+
+[addresses]
+evala = "0x0"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui", subdir = "crates/sui-framework/packages/sui-framework", rev = "main" }
+
+[dev-dependencies]
