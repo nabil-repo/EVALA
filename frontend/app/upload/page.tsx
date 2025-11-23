@@ -4,6 +4,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-ki
 import { Transaction } from "@mysten/sui/transactions";
 import { toast } from "sonner";
 import { bcs } from "@mysten/sui/bcs";
+import { fileTypeFromBuffer } from "file-type";
 import { PACKAGE_ID, VOTEBOOK_ID } from "@/lib/config";
 import { useIsZkLogin, zkLoginGuardMessage } from "@/lib/zk";
 import ZkLoginBanner from "@/components/ZkLoginBanner";
@@ -24,14 +25,46 @@ export default function UploadPage() {
 
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
 
-  async function uploadAllToWalrus(files: FileList): Promise<string[]> {
-    const ids: string[] = [];
+  // Detect file type from file buffer
+  async function detectFileType(file: File): Promise<'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'> {
+    try {
+      // Check file extension first (fast path)
+      const ext = file.name.toLowerCase().split('.').pop() || '';
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+      if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) return 'video';
+      if (ext === 'pdf') return 'pdf';
+      if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return 'audio';
+      if (['txt', 'md', 'json', 'xml', 'csv', 'log', 'yml', 'yaml'].includes(ext)) return 'text';
+
+      // Use magic bytes detection
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const fileType = await fileTypeFromBuffer(uint8Array);
+      
+      if (fileType) {
+        if (fileType.mime.startsWith('image/')) return 'image';
+        if (fileType.mime.startsWith('video/')) return 'video';
+        if (fileType.mime === 'application/pdf') return 'pdf';
+        if (fileType.mime.startsWith('audio/')) return 'audio';
+        if (fileType.mime.startsWith('text/')) return 'text';
+      }
+      
+      return 'unknown';
+    } catch (e) {
+      console.warn('Failed to detect file type:', e);
+      return 'unknown';
+    }
+  }
+
+  async function uploadAllToWalrus(files: FileList): Promise<Array<{ blobId: string; type: string; name: string }>> {
+    const results: Array<{ blobId: string; type: string; name: string }> = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i]!;
+      const fileType = await detectFileType(f);
       const res = await walrusPutBlob(f, 1);
-      ids.push(res.blobId);
+      results.push({ blobId: res.blobId, type: fileType, name: f.name });
     }
-    return ids;
+    return results;
   }
 
   async function onUpload() {
@@ -43,13 +76,19 @@ export default function UploadPage() {
     try {
       const uploadToast = toast.loading("Uploading to Walrus storage...");
 
-      // Upload all files and keep each Walrus ID
-      const cids = await uploadAllToWalrus(files);
-      const primaryCid = cids[0];
-      const ipfsPayload = JSON.stringify({ cids });
+      // Upload all files with type detection
+      const results = await uploadAllToWalrus(files);
+      const primaryCid = results[0].blobId;
+      const ipfsPayload = JSON.stringify({ 
+        cids: results.map(r => r.blobId),
+        files: results.map(r => ({ blobId: r.blobId, type: r.type, name: r.name }))
+      });
+      
+      // Create comma-separated file types string for on-chain event
+      const fileTypesString = results.map(r => r.type).join(',');
 
       setCid(primaryCid);
-      toast.loading(`Stored on Walrus (x${cids.length}). Submitting on-chain...`, { id: uploadToast });
+      toast.loading(`Stored on Walrus (x${results.length}). Submitting on-chain...`, { id: uploadToast });
 
       if (!PACKAGE_ID) throw new Error('Missing NEXT_PUBLIC_PACKAGE_ID');
       if (!VOTEBOOK_ID) throw new Error('NEXT_PUBLIC_VOTEBOOK_ID is not set. Run init script.');
@@ -62,7 +101,8 @@ export default function UploadPage() {
           tx.pure.string(title || 'Untitled'),
           tx.pure.string(desc || ''),
           tx.pure.string(ipfsPayload),
-          tx.pure.u64(cids.length),
+          tx.pure.u64(results.length),
+          tx.pure.string(fileTypesString),
           tx.object(VOTEBOOK_ID),
         ],
       });

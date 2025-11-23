@@ -16,7 +16,7 @@ export default function VotePage() {
   const account = useCurrentAccount();
   const isZk = useIsZkLogin();
   const { isSignedIn: hasZkSession } = useZkSession();
-  const [content, setContent] = useState<{ id: string; title: string; description: string; ipfs: string; cids: string[]; variants: number; closed?: boolean; creator?: string }[]>([]);
+  const [content, setContent] = useState<{ id: string; title: string; description: string; ipfs: string; cids: string[]; variants: number; closed?: boolean; creator?: string; fileTypes?: string[] }[]>([]);
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [voteCounts, setVoteCounts] = useState<Record<string, number[]>>({});
   const [loading, setLoading] = useState(false);
@@ -64,51 +64,71 @@ export default function VotePage() {
     }
   };
 
-  const parseCids = (ipfsString: string): { primary: string; list: string[] } => {
-    if (!ipfsString) return { primary: "", list: [] };
+  const parseCids = (ipfsString: string): { primary: string; list: string[]; fileTypes: Record<string, string> } => {
+    if (!ipfsString) return { primary: "", list: [], fileTypes: {} };
     try {
       const parsed = JSON.parse(ipfsString);
+
+      // New format with file metadata
+      if (parsed && Array.isArray(parsed.files)) {
+        const list = parsed.files.map((f: any) => String(f.blobId)).filter(Boolean);
+        const fileTypes: Record<string, string> = {};
+        parsed.files.forEach((f: any) => {
+          if (f.blobId && f.type) {
+            fileTypes[f.blobId] = f.type;
+          }
+        });
+        return { primary: list[0] ?? "", list, fileTypes };
+      }
+
+      // Legacy format - just CIDs array
       if (Array.isArray(parsed)) {
         const list = parsed.map((s) => String(s)).filter(Boolean);
-        return { primary: list[0] ?? "", list };
+        return { primary: list[0] ?? "", list, fileTypes: {} };
       }
       if (parsed && Array.isArray(parsed.cids)) {
         const list = parsed.cids.map((s: any) => String(s)).filter(Boolean);
-        return { primary: list[0] ?? "", list };
+        return { primary: list[0] ?? "", list, fileTypes: {} };
       }
+
       // Fallback: plain CID string
-      return { primary: ipfsString, list: [ipfsString] };
+      return { primary: ipfsString, list: [ipfsString], fileTypes: {} };
     } catch {
       // Not JSON: treat as plain CID
-      return { primary: ipfsString, list: [ipfsString] };
+      return { primary: ipfsString, list: [ipfsString], fileTypes: {} };
     }
   };
 
-  // Detect file type from CID or URL using magic bytes
-  const detectFileType = async (cid: string) => {
+  // Detect file type from CID or URL using magic bytes (fallback for legacy content)
+  const detectFileType = async (cid: string): Promise<'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'> => {
     try {
+      console.log(`Detecting file type for ${cid} (no metadata available)`);
       const url = walrusBlobUrl(cid);
       if (!url) return "unknown";
 
-      // Step 1: fetch full blob
-      const res = await fetch(url);
-      const blob = await res.blob();
+      // Fetch first ~4KB for magic bytes detection
+      const res = await fetch(url, { headers: { 'Range': 'bytes=0-4100' } });
+      const arrayBuffer = await res.arrayBuffer();
+      const header = new Uint8Array(arrayBuffer);
 
-      // Step 2: browser MIME sniffing
-      const mime = blob.type; // browser-sniffed mime
+      // Check common magic bytes
+      // PDF
+      if (header[0] === 0x25 && header[1] === 0x50) return "pdf"; // %P
+      // PNG
+      if (header[0] === 0x89 && header[1] === 0x50) return "image";
+      // JPG
+      if (header[0] === 0xff && header[1] === 0xd8) return "image";
+      // MP4 / MOV
+      if (header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79) return "video"; // ftyp
+      // MP3
+      if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) return "audio"; // ID3
+      // WAV
+      if (header[0] === 0x52 && header[1] === 0x49) return "audio"; // RIFF
 
-      console.log("Browser MIME:", mime);
-
-      if (mime.startsWith("image/")) return "image";
-      if (mime.startsWith("video/")) return "video";
-      if (mime === "application/pdf") return "pdf";
-      if (mime.startsWith("audio/")) return "audio";
-      if (mime.startsWith("text/")) return "text";
-
-      // Step 3: fallback to file-type
-      const buf = new Uint8Array(await blob.arrayBuffer());
-      const ft = await fileTypeFromBuffer(buf);
+      // Use file-type library as fallback
+      const ft = await fileTypeFromBuffer(header);
       if (ft) {
+        console.log(`Detected MIME type: ${ft.mime}`);
         if (ft.mime.startsWith("image/")) return "image";
         if (ft.mime.startsWith("video/")) return "video";
         if (ft.mime === "application/pdf") return "pdf";
@@ -124,16 +144,42 @@ export default function VotePage() {
   };
 
 
-  // Fetch file types for all CIDs
+  // Fetch file types for all CIDs (prioritize metadata, fallback to detection)
   useEffect(() => {
     const fetchFileTypes = async () => {
-      const allCids = content.flatMap(c => c.cids || []);
-      const uniqueCids = [...new Set(allCids)];
+      // Extract file types from metadata (new format)
+      const metadataTypes: Record<string, 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'> = {};
+      let hasMetadata = false;
 
-      for (const cid of uniqueCids) {
-        if (!fileTypes[cid]) {
-          const type = await detectFileType(cid);
-          setFileTypes(prev => ({ ...prev, [cid]: type }));
+      content.forEach(c => {
+        const parsed = parseCids(c.ipfs);
+        if (Object.keys(parsed.fileTypes).length > 0) {
+          hasMetadata = true;
+          Object.entries(parsed.fileTypes).forEach(([cid, type]) => {
+            const validType = type as 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown';
+            metadataTypes[cid] = validType;
+            console.log(`Loaded file type from metadata: ${cid} -> ${validType}`);
+          });
+        }
+      });
+
+      // Set metadata types immediately (instant display)
+      if (Object.keys(metadataTypes).length > 0) {
+        console.log(`Using metadata for ${Object.keys(metadataTypes).length} files`);
+        setFileTypes(prev => ({ ...prev, ...metadataTypes }));
+      }
+
+      // Only detect types for legacy content without metadata
+      if (!hasMetadata) {
+        console.log('No metadata found, falling back to file type detection');
+        const allCids = content.flatMap(c => c.cids || []);
+        const uniqueCids = [...new Set(allCids)];
+
+        for (const cid of uniqueCids) {
+          if (!metadataTypes[cid] && !fileTypes[cid]) {
+            const type = await detectFileType(cid);
+            setFileTypes(prev => ({ ...prev, [cid]: type }));
+          }
         }
       }
     };
@@ -141,9 +187,7 @@ export default function VotePage() {
     if (content.length > 0) {
       fetchFileTypes();
     }
-  }, [content]);
-
-  // Render file preview based on type
+  }, [content]);  // Render file preview based on type
   const renderFilePreview = (cid: string, index: number) => {
     const fileType = fileTypes[cid] || 'image';
     const url = walrusBlobUrl(cid) || '';
@@ -248,8 +292,13 @@ export default function VotePage() {
           const titleStr = decodeIpfs(fields?.title) || 'Content';
           const descStr = decodeIpfs(fields?.description) || '';
           const variants = typeof fields?.variants === 'string' ? parseInt(fields.variants, 10) : (fields?.variants ?? 1);
-          const { primary, list } = parseCids(ipfs);
+          const { primary, list, fileTypes: parsedFileTypes } = parseCids(ipfs);
           const creator = fields?.creator || '';
+
+          // Get file types from event (new) or from ipfs payload (legacy)
+          const eventFileTypes = decodeIpfs(fields?.file_types);
+          const fileTypesArray = eventFileTypes ? eventFileTypes.split(',') : [];
+
           return {
             id: fields?.content_id || fields?.contentId,
             title: titleStr,
@@ -258,7 +307,8 @@ export default function VotePage() {
             cids: list,
             variants: Number.isFinite(variants) && variants > 0 ? variants : 1,
             creator,
-          } as { id: string; title: string; description: string; ipfs: string; cids: string[]; variants: number; creator: string };
+            fileTypes: fileTypesArray.length > 0 ? fileTypesArray : Object.values(parsedFileTypes),
+          } as { id: string; title: string; description: string; ipfs: string; cids: string[]; variants: number; creator: string; fileTypes?: string[] };
         }).filter((x: any) => !!x.id);
 
         // If nothing found, retry a couple times to allow indexer to catch up

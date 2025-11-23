@@ -70,8 +70,10 @@ module evala::EvalaContent {
         title: vector<u8>,
         description: vector<u8>,
         variants: u64,
-        /// Generic storage payload (was IPFS hash). Currently Walrus blob IDs JSON.
+        /// Generic storage payload (was IPFS hash). Currently Walrus blob IDs JSON with file metadata.
         ipfs_hash: vector<u8>,
+        /// Optional: File types as comma-separated string (e.g., "image,video,pdf")
+        file_types: vector<u8>,
     }
 
     /// Register a new content set (v2) with title and description
@@ -80,6 +82,7 @@ module evala::EvalaContent {
         description: vector<u8>,
         ipfs_hash: vector<u8>,
         variants: u64,
+        file_types: vector<u8>,
         ctx: &mut tx_context::TxContext
     ) {
         // Input validation
@@ -100,7 +103,7 @@ module evala::EvalaContent {
             closed: false,
         };
         let content_id = object::uid_to_inner(&content.id);
-        event::emit(ContentRegisteredV2 { content_id, creator, title: content.title, description: content.description, variants, ipfs_hash });
+        event::emit(ContentRegisteredV2 { content_id, creator, title: content.title, description: content.description, variants, ipfs_hash, file_types });
         transfer::public_transfer(content, creator);
     }
 
@@ -110,6 +113,7 @@ module evala::EvalaContent {
         description: vector<u8>,
         ipfs_hash: vector<u8>,
         variants: u64,
+        file_types: vector<u8>,
         vb: &mut EvalaVote::VoteBook,
         ctx: &mut tx_context::TxContext
     ) {
@@ -131,7 +135,7 @@ module evala::EvalaContent {
             closed: false,
         };
         let content_id = object::uid_to_inner(&content.id);
-        event::emit(ContentRegisteredV2 { content_id, creator, title: content.title, description: content.description, variants, ipfs_hash });
+        event::emit(ContentRegisteredV2 { content_id, creator, title: content.title, description: content.description, variants, ipfs_hash, file_types });
         // Index creator for this content to prevent self-voting (keyed by object::ID)
         EvalaVote::index_creator(vb, content_id, creator);
         transfer::public_transfer(content, creator);
