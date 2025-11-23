@@ -1,6 +1,6 @@
-# Evala on Sui
+# Evala on Sui & Walrus
 
-Decentralized human validation engine on the Sui blockchain. Creators upload multiple content variants (e.g. thumbnails). Validators vote. Rewards are distributed to voters who aligned with the winning variant. Reputation is accrued on-chain via a soulbound NFT.
+Decentralized human validation engine on the Sui blockchain & Walrus. Creators upload multiple content variants (e.g. thumbnails). Validators vote. Rewards are distributed to voters who aligned with the winning variant. Reputation is accrued on-chain via a soulbound NFT.
 
 ## Repository Structure
 
@@ -9,7 +9,6 @@ Decentralized human validation engine on the Sui blockchain. Creators upload mul
 | `contracts/` | Move modules (`EvalaContent`, `EvalaVote`, `EvalaReward`, `EvalaReputation`, `EvalaPoll`) |
 | `frontend/` | Next.js + TypeScript dApp (upload, vote, dashboard, rewards) |
 | `scripts/` | Bash & PowerShell deployment + init helpers |
-| `ai/` | Off-chain / future AI utilities (e.g. summarization pipeline) |
 
 ## Smart Contract Modules
 
@@ -76,30 +75,15 @@ Linux / macOS:
 ./scripts/deploy.sh
 ```
 
-Windows PowerShell:
-```powershell
-./scripts/deploy.ps1
-```
+Output includes: Package , VoteBook ID and UpgradeCap. Copy values into `frontend/.env.local`.
 
-Output includes: Package ID, VoteBook (if initialized separately), UpgradeCap. Copy values into `frontend/.env.local`.
-
-### VoteBook Init (if not auto-created)
-Run the init script or a Move call to create the shared VoteBook object, then set `NEXT_PUBLIC_VOTEBOOK_ID`.
-
-## Claiming Reputation – Troubleshooting
-
-If you see `reputationId=null` logs but an NFT is minted:
-1. Wait a few seconds (indexer catch-up).
-2. Refresh dashboard; local variable fix avoids stale state.
-3. Ensure `NEXT_PUBLIC_PACKAGE_ID` matches the package where you minted.
-4. Unclaimed stays `0` until rewards are distributed AND you own the Reputation NFT.
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `deploy.sh` / `deploy.ps1` | Builds & publishes Move package, echoes IDs |
-| `init-votebook.ps1` | Creates VoteBook object (legacy path) |
+| `deploy.sh` | Builds & publishes Move package, echoes IDs |
+
 
 ## Development
 
@@ -132,9 +116,5 @@ sui move build
 - Caching layer for event → file type mapping.
 - Bulk analytics & model-assisted "auto-evaluate" winner suggestions.
 
-## Notes
 
-Devnet only – not audited. Do NOT use with real value. Payload sizes constrained; keep IPFS/Walrus metadata minimal. Reputation is soulbound by convention (no transfer calls exposed).
 
----
-For deeper Move details see `contracts/sources/*` and inline comments.
