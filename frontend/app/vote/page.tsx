@@ -29,40 +29,48 @@ export default function VotePage() {
   const [fileTypes, setFileTypes] = useState<Record<string, 'image' | 'video' | 'pdf' | 'audio' | 'text' | 'unknown'>>({});
 
   // Decode Move vector<u8> (which may be emitted as base64 or 0x-hex) to a UTF-8 string
-  const decodeIpfs = (val: unknown): string => {
-    if (!val) return "";
-    try {
-      const decoder = new TextDecoder();
-      // hex string like 0x1234...
-      const fromHex = (hex: string) => {
-        const cleaned = hex.startsWith("0x") ? hex.slice(2) : hex;
-        const bytes = new Uint8Array(cleaned.length / 2);
-        for (let i = 0; i < cleaned.length; i += 2) {
-          bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
-        }
-        return decoder.decode(bytes);
-      };
-      if (typeof val === "string") {
-        if (val.startsWith("0x")) return fromHex(val);
-        // try base64
-        try {
-          const bin = atob(val);
-          const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-          return decoder.decode(bytes);
-        } catch {
-          // not base64; return as-is
-          return val;
-        }
-      }
-      if (Array.isArray(val)) {
-        // assume number[]
-        return decoder.decode(Uint8Array.from(val as number[]));
-      }
-      return "";
-    } catch {
-      return "";
-    }
+  // const decodeIpfs = (val: unknown): string => {
+  //   if (!val) return "";
+  //   try {
+  //     const decoder = new TextDecoder();
+  //     // hex string like 0x1234...
+  //     const fromHex = (hex: string) => {
+  //       const cleaned = hex.startsWith("0x") ? hex.slice(2) : hex;
+  //       const bytes = new Uint8Array(cleaned.length / 2);
+  //       for (let i = 0; i < cleaned.length; i += 2) {
+  //         bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+  //       }
+  //       return decoder.decode(bytes);
+  //     };
+  //     if (typeof val === "string") {
+  //       if (val.startsWith("0x")) return fromHex(val);
+  //       // try base64
+  //       try {
+  //         const bin = atob(val);
+  //         const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  //         return decoder.decode(bytes);
+  //       } catch {
+  //         // not base64; return as-is
+  //         return val;
+  //       }
+  //     }
+  //     if (Array.isArray(val)) {
+  //       // assume number[]
+  //       return decoder.decode(Uint8Array.from(val as number[]));
+  //     }
+  //     return "";
+  //   } catch {
+  //     return "";
+  //   }
+  // };
+
+  const decodeIpfs = (val: any): string => {
+    if (typeof val === "string") return val;
+    if (Array.isArray(val)) return new TextDecoder().decode(Uint8Array.from(val));
+    return "";
   };
+
+
 
   const parseCids = (ipfsString: string): { primary: string; list: string[]; fileTypes: Record<string, string> } => {
     if (!ipfsString) return { primary: "", list: [], fileTypes: {} };
@@ -201,7 +209,11 @@ export default function VotePage() {
   }, [content]);  // Render file preview based on type
   const renderFilePreview = (cid: string, index: number) => {
     const fileType = fileTypes[cid] || 'unknown';
-    const url = walrusBlobUrl(cid) || '';
+    // Convert Base64URL to Base58 for Walrus fetch
+    let url = '';
+
+    url = walrusBlobUrl(cid) || '';
+
 
     switch (fileType) {
       case 'unknown':
@@ -277,6 +289,7 @@ export default function VotePage() {
     async function load() {
       console.log("Using PACKAGE_ID:", PACKAGE_ID);
       setLoading(true);
+
       try {
         if (!PACKAGE_ID) return;
         const pkgIds = [PACKAGE_ID];
@@ -321,6 +334,17 @@ export default function VotePage() {
             fileTypes: fileTypesArray.length > 0 ? fileTypesArray : Object.values(parsedFileTypes),
           } as { id: string; title: string; description: string; ipfs: string; cids: string[]; variants: number; creator: string; fileTypes?: string[] };
         }).filter((x: any) => !!x.id);
+
+        // Filter out items whose primary CID does not exist in Walrus aggregator
+        const verifiedItems: typeof items = [];
+        for (const item of items) {
+          const url = walrusBlobUrl(item.ipfs);
+          if (url) {
+            verifiedItems.push(item);
+          }
+        }
+        items = verifiedItems;
+
 
         // If nothing found, retry a couple times to allow indexer to catch up
         if (!items.length) {
@@ -413,8 +437,8 @@ export default function VotePage() {
             const voter = normalize(f?.voter);
             const user = normalize(account?.address);
 
-            console.log( ' voter :' + voter + ' user: ' + user);
-       
+            console.log(' voter :' + voter + ' user: ' + user);
+
             if (voter === user) {
               votedByUser.add(cid);
               console.log(`User has voted on content ${cid}`);
@@ -817,7 +841,8 @@ export default function VotePage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const url = walrusBlobUrl(cid);
+                              let url = '';
+                              url = walrusBlobUrl(cid) || '';
                               if (!url) return;
 
                               const fileType = fileTypes[cid] || 'image';

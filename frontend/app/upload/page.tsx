@@ -62,6 +62,7 @@ export default function UploadPage() {
       const f = files[i]!;
       const fileType = await detectFileType(f);
       const res = await walrusPutBlob(f, 1);
+
       results.push({ blobId: res.blobId, type: fileType, name: f.name });
     }
     return results;
@@ -95,14 +96,14 @@ export default function UploadPage() {
       // Upload all files with type detection
       const results = await uploadAllToWalrus(files);
       const primaryCid = results[0].blobId;
-      
+
       // Store only CIDs array in payload (file types go to event)
       // This keeps payload under 200 bytes for on-chain storage
       const ipfsPayload = JSON.stringify(results.map(r => r.blobId));
 
       // Create comma-separated file types string for on-chain event
       const fileTypesString = results.map(r => r.type).join(',');
-      
+
       console.log('Payload length:', ipfsPayload.length, 'bytes');
       console.log('File types:', fileTypesString);
 
@@ -297,14 +298,14 @@ export default function UploadPage() {
 
           <button
             onClick={onUpload}
-            disabled={!account || !files || files.length <= 1}
+            disabled={!account || !files || files.length <= 1 || title.length === 0 || desc.length === 0}
             className="neuro-btn-primary w-full text-base font-semibold"
           >
             Upload to Walrus & Register On-Chain
           </button>
         </div>
 
-        {/* IPFS Result */}
+        {/* Walrus Result */}
         {cid && (
           <div className="neuro-card space-y-3">
             <div className="flex items-center gap-2">
@@ -315,11 +316,11 @@ export default function UploadPage() {
               </div>
               <div>
                 <p className="font-semibold text-gray-800">Successfully Uploaded!</p>
-                <p className="text-xs text-gray-600">CID: <code className="bg-gray-100 px-2 py-0.5 rounded">{cid}</code></p>
+                <p className="text-xs text-gray-600">Blob ID: <code className="bg-gray-100 px-2 py-0.5 rounded">{cid}</code></p>
               </div>
             </div>
             <a
-              href={walrusBlobUrl(cid) || '#'}
+              href={`https://walruscan.com/testnet/blob/${cid}`}
               target="_blank"
               rel="noopener noreferrer"
               className="neuro-btn text-sm w-full text-center inline-block"
