@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
       try {
         // Fetch user's objects to find Reputation NFT
-        console.log(`Querying for Reputation NFT: owner=${account.address}, type=${PACKAGE_ID}::${MODULES.reputation}::Reputation`);
+        // console.log(`Querying for Reputation NFT: owner=${account.address}, type=${PACKAGE_ID}::${MODULES.reputation}::Reputation`);
 
         const objects = await client.getOwnedObjects({
           owner: account.address,
@@ -46,7 +46,7 @@ export default function DashboardPage() {
           }
         });
 
-        console.log(`Found ${objects.data.length} Reputation NFT(s)`);
+        //console.log(`Found ${objects.data.length} Reputation NFT(s)`);
         let repIdLocal: string | null = null;
         if (objects.data.length > 0) {
           const repObject = objects.data[0];
@@ -160,13 +160,16 @@ export default function DashboardPage() {
                 sender: account.address,
                 transactionBlock: tx,
               });
+              console.log('Dev inspect result for content ', contentId, result);
 
-              const returnValue = result.results?.[0]?.returnValues?.[0] as number[] | undefined;
-              const isClaimed = returnValue && returnValue.length > 0 && returnValue[0] === 1;
-              console.log(`Content ${contentId}: isClaimed=${isClaimed}, rawReturn=${JSON.stringify(returnValue)}`);
-              if (!isClaimed) {
+              const returnValue = result.results?.[0]?.returnValues?.[0] as any;
+              // Sui returns [[1],"bool"] for true (claimed), [[0],"bool"] for false (not claimed)
+              const isClaimed = returnValue && Array.isArray(returnValue[0]) && returnValue[0][0] === 1;
+              if (isClaimed) {
+                console.log(`Content ${contentId}: isClaimed=true (already claimed), rawReturn=${JSON.stringify(returnValue)}`);
+              } else {
                 unclaimedTasksCount++;
-                console.log(`Unclaimed reputation for content ${contentId}`);
+                console.log(`Content ${contentId}: isClaimed=false (unclaimed), rawReturn=${JSON.stringify(returnValue)}`);
               }
             } catch (e) {
               console.error(`Error checking claim status for ${contentId}:`, e);
@@ -245,7 +248,7 @@ export default function DashboardPage() {
             sender: account.address,
             transactionBlock: checkTx,
           });
-          
+
           // returnValues[0] is a Uint8Array where first byte is the boolean (1=true, 0=false)
           const returnValue = result.results?.[0]?.returnValues?.[0] as number[] | undefined;
           const isClaimed = returnValue && returnValue.length > 0 && returnValue[0] === 1;
@@ -362,8 +365,8 @@ export default function DashboardPage() {
 
               {claimMessage && (
                 <div className={`mt-2 text-xs px-3 py-2 rounded-lg ${claimMessage.startsWith('Success')
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
                   }`}>
                   {claimMessage}
                 </div>

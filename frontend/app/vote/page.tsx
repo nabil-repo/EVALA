@@ -401,6 +401,8 @@ export default function VotePage() {
           }
           const counts: Record<string, number[]> = {};
           const votedByUser = new Set<string>();
+          const normalize = (v?: string) =>
+            (v || '').trim().toLowerCase().replace(/^0x/, '');
 
           for (const ev of voteEvents) {
             const f = ev.parsedJson as any;
@@ -408,9 +410,14 @@ export default function VotePage() {
             if (!ids.includes(cid)) continue;
 
             // Check if this vote is from current user
-            const voter = (f?.voter || '').toLowerCase();
-            if (account?.address && voter === account.address.toLowerCase()) {
+            const voter = normalize(f?.voter);
+            const user = normalize(account?.address);
+
+            console.log( ' voter :' + voter + ' user: ' + user);
+       
+            if (voter === user) {
               votedByUser.add(cid);
+              console.log(`User has voted on content ${cid}`);
             }
 
             const viRaw = f?.variant_index ?? f?.variantIndex ?? 0;
@@ -424,6 +431,7 @@ export default function VotePage() {
           }
           console.log('Vote counts:', counts);
           console.log('User already voted on:', Array.from(votedByUser));
+
           setVoteCounts(counts);
           setAlreadyVoted(votedByUser);
         }
@@ -464,50 +472,8 @@ export default function VotePage() {
       }
     }
     load();
-  }, [client]);
+  }, [client, account?.address]);
 
-  // Test function to call get_vote_count directly
-  async function testGetVoteCount(contentId: string, variantIndex: number) {
-    try {
-      if (!PACKAGE_ID || !VOTEBOOK_ID) {
-        toast.error('Missing PACKAGE_ID or VOTEBOOK_ID');
-        return;
-      }
-
-      const tx = new Transaction();
-      const [result] = tx.moveCall({
-        target: `${PACKAGE_ID}::${MODULES.vote}::get_vote_count`,
-        arguments: [
-          tx.object(VOTEBOOK_ID),
-          tx.pure.id(contentId),
-          tx.pure.u64(variantIndex),
-        ],
-      });
-
-      // DevInspect to read the return value without executing
-      const devInspectResult = await client.devInspectTransactionBlock({
-        transactionBlock: tx,
-        sender: '0x0000000000000000000000000000000000000000000000000000000000000000',
-      });
-
-      console.log('get_vote_count devInspect result:', devInspectResult);
-
-      if (devInspectResult.results && devInspectResult.results[0]) {
-        const returnValues = devInspectResult.results[0].returnValues;
-        if (returnValues && returnValues[0]) {
-          const [bytes] = returnValues[0];
-          // Decode u64 from BCS bytes
-          const view = new DataView(new Uint8Array(bytes).buffer);
-          const count = view.getBigUint64(0, true); // little-endian
-          toast.info(`get_vote_count(${contentId.slice(0, 8)}..., ${variantIndex}) = ${count}`);
-          console.log(`Direct call: Variant ${variantIndex} has ${count} votes`);
-        }
-      }
-    } catch (e: any) {
-      console.error('get_vote_count test error:', e);
-      toast.error(`Test failed: ${e?.message || String(e)}`);
-    }
-  }
 
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
   const [hasReputation, setHasReputation] = useState<boolean | null>(null);
